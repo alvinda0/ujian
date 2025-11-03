@@ -19,6 +19,9 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 
 	r := gin.Default()
 
+	// Add CORS middleware
+	r.Use(middleware.CORSMiddleware())
+
 	// Initialize services
 	jwtService := utils.NewJWTService(cfg.JWT.Secret, cfg.JWT.ExpireHour)
 	authService := services.NewAuthService(db, jwtService)
@@ -46,15 +49,23 @@ func Setup(db *gorm.DB, cfg *config.Config) *gin.Engine {
 		})
 	})
 
+	// Auth routes without /api prefix for compatibility
+	auth := r.Group("/auth")
+	{
+		auth.POST("/login", authHandler.Login)
+		auth.POST("/logout", authHandler.Logout)
+		auth.GET("/profile", middleware.AuthMiddleware(authService), authHandler.Profile)
+	}
+
 	// API routes
 	api := r.Group("/api")
 	{
 		// Auth routes (public)
-		auth := api.Group("/auth")
+		authAPI := api.Group("/auth")
 		{
-			auth.POST("/login", authHandler.Login)
-			auth.POST("/logout", authHandler.Logout)
-			auth.GET("/profile", middleware.AuthMiddleware(authService), authHandler.Profile)
+			authAPI.POST("/login", authHandler.Login)
+			authAPI.POST("/logout", authHandler.Logout)
+			authAPI.GET("/profile", middleware.AuthMiddleware(authService), authHandler.Profile)
 		}
 
 		// Admin routes (protected)
